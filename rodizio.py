@@ -50,20 +50,27 @@ def resultado(idx, vencedor, perdedor):
     registrar_partida(vencedor)
     registrar_partida(perdedor)
 
-    # regra: máximo 2 partidas
-    if st.session_state.partidas.get(vencedor,0) >= 2:
-        st.session_state.fila.append(vencedor)
-        vencedor = proximo()
+    fila = len(st.session_state.fila)
 
-    if st.session_state.partidas.get(perdedor,0) >= 2:
+    if fila >= 2:
+        # vencedor pode jogar até 2
+        if st.session_state.partidas.get(vencedor,0) >= 2:
+            st.session_state.fila.append(vencedor)
+            vencedor = proximo()
+
+        # perdedor sempre sai
         st.session_state.fila.append(perdedor)
         perdedor = proximo()
+
     else:
+        # pouca fila → vencedor continua
         st.session_state.fila.append(perdedor)
         perdedor = proximo()
 
     mesa["players"] = [vencedor, perdedor]
     mesa["inicio"] = time.time()
+
+    st.rerun()
 
 def verificar_tempo():
     agora = time.time()
@@ -85,15 +92,17 @@ def add_mesa():
         "players":["Livre","Livre"],
         "inicio": time.time()
     })
+    st.rerun()
 
 def remove_mesa():
     if len(st.session_state.mesas) > 2:
         mesa = st.session_state.mesas.pop()
 
-        # devolve jogadores pra fila
         for p in mesa["players"]:
             if p != "Livre":
                 st.session_state.fila.append(p)
+
+    st.rerun()
 
 def reset():
     st.session_state.fila = []
@@ -103,8 +112,9 @@ def reset():
     ]
     st.session_state.vitorias = {}
     st.session_state.partidas = {}
+    st.rerun()
 
-# ---------------- LÓGICA ----------------
+# ---------------- EXECUÇÃO ----------------
 verificar_tempo()
 preencher_mesas()
 
@@ -126,6 +136,7 @@ with col2:
     if st.button("Adicionar"):
         if nome:
             st.session_state.fila.append(nome)
+            st.rerun()
 
 # ---------------- MESAS ----------------
 st.markdown("---")
@@ -146,18 +157,16 @@ for i, mesa in enumerate(st.session_state.mesas):
 
         if st.button(f"{p1} venceu", key=f"{i}a"):
             resultado(i, p1, p2)
-            st.rerun()
 
         if st.button(f"{p2} venceu", key=f"{i}b"):
             resultado(i, p2, p1)
-            st.rerun()
 
 # ---------------- FILA ----------------
 st.markdown("---")
 st.markdown("## ⏳ Fila")
 
 for i, j in enumerate(st.session_state.fila):
-    col1, col2 = st.columns([4,1])
+    col1, col2, col3 = st.columns([4,1,1])
 
     with col1:
         st.write(f"{i+1}. {j}")
@@ -165,6 +174,12 @@ for i, j in enumerate(st.session_state.fila):
     with col2:
         if st.button("❌", key=f"del{i}"):
             st.session_state.fila.pop(i)
+            st.rerun()
+
+    with col3:
+        if st.button("⬇️", key=f"down{i}"):
+            jogador = st.session_state.fila.pop(i)
+            st.session_state.fila.append(jogador)
             st.rerun()
 
 # ---------------- CONTROLE ----------------
