@@ -8,15 +8,18 @@ if "fila" not in st.session_state:
     st.session_state.fila = []
 
 if "mesas" not in st.session_state:
-    st.session_state.mesas = [["Livre","Livre"], ["Livre","Livre"]]
+    st.session_state.mesas = [
+        {"players": ["Livre","Livre"], "inicio": time.time()},
+        {"players": ["Livre","Livre"], "inicio": time.time()}
+    ]
 
 if "vitorias" not in st.session_state:
     st.session_state.vitorias = {}
 
-if "tempo_inicio" not in st.session_state:
-    st.session_state.tempo_inicio = time.time()
+if "partidas" not in st.session_state:
+    st.session_state.partidas = {}
 
-TEMPO_PARTIDA = 15 * 60  # 15 minutos
+TEMPO = 15 * 60
 
 # ---------------- FUNÇÕES ----------------
 def proximo():
@@ -25,84 +28,104 @@ def proximo():
     return "Livre"
 
 def preencher_mesas():
-    for i in range(len(st.session_state.mesas)):
-        p1, p2 = st.session_state.mesas[i]
+    for mesa in st.session_state.mesas:
+        p1, p2 = mesa["players"]
 
         if p1 == "Livre":
-            st.session_state.mesas[i][0] = proximo()
+            mesa["players"][0] = proximo()
 
         if p2 == "Livre":
-            st.session_state.mesas[i][1] = proximo()
+            mesa["players"][1] = proximo()
+
+def registrar_partida(j):
+    st.session_state.partidas[j] = st.session_state.partidas.get(j,0)+1
 
 def registrar_vitoria(j):
     st.session_state.vitorias[j] = st.session_state.vitorias.get(j,0)+1
 
 def resultado(idx, vencedor, perdedor):
+    mesa = st.session_state.mesas[idx]
+
     registrar_vitoria(vencedor)
+    registrar_partida(vencedor)
+    registrar_partida(perdedor)
 
-    st.session_state.fila.append(perdedor)
+    # regra: máximo 2 partidas
+    if st.session_state.partidas.get(vencedor,0) >= 2:
+        st.session_state.fila.append(vencedor)
+        vencedor = proximo()
 
-    novo = proximo()
-    st.session_state.mesas[idx] = [vencedor, novo]
+    if st.session_state.partidas.get(perdedor,0) >= 2:
+        st.session_state.fila.append(perdedor)
+        perdedor = proximo()
+    else:
+        st.session_state.fila.append(perdedor)
+        perdedor = proximo()
 
-def trocar_todas_mesas():
-    for i in range(len(st.session_state.mesas)):
-        p1, p2 = st.session_state.mesas[i]
+    mesa["players"] = [vencedor, perdedor]
+    mesa["inicio"] = time.time()
 
-        if p1 != "Livre":
-            st.session_state.fila.append(p1)
-        if p2 != "Livre":
-            st.session_state.fila.append(p2)
+def verificar_tempo():
+    agora = time.time()
 
-        st.session_state.mesas[i] = ["Livre","Livre"]
+    for mesa in st.session_state.mesas:
+        if agora - mesa["inicio"] >= TEMPO:
+            p1, p2 = mesa["players"]
 
-    preencher_mesas()
-    st.session_state.tempo_inicio = time.time()
+            if p1 != "Livre":
+                st.session_state.fila.append(p1)
+            if p2 != "Livre":
+                st.session_state.fila.append(p2)
+
+            mesa["players"] = ["Livre","Livre"]
+            mesa["inicio"] = time.time()
 
 def add_mesa():
-    st.session_state.mesas.append(["Livre","Livre"])
+    st.session_state.mesas.append({
+        "players":["Livre","Livre"],
+        "inicio": time.time()
+    })
 
 def remove_mesa():
     if len(st.session_state.mesas) > 2:
-        st.session_state.mesas.pop()
+        mesa = st.session_state.mesas.pop()
+
+        # devolve jogadores pra fila
+        for p in mesa["players"]:
+            if p != "Livre":
+                st.session_state.fila.append(p)
 
 def reset():
     st.session_state.fila = []
-    st.session_state.mesas = [["Livre","Livre"], ["Livre","Livre"]]
+    st.session_state.mesas = [
+        {"players": ["Livre","Livre"], "inicio": time.time()},
+        {"players": ["Livre","Livre"], "inicio": time.time()}
+    ]
     st.session_state.vitorias = {}
-    st.session_state.tempo_inicio = time.time()
+    st.session_state.partidas = {}
 
-# ---------------- TIMER ----------------
-tempo_passado = time.time() - st.session_state.tempo_inicio
-tempo_restante = int(TEMPO_PARTIDA - tempo_passado)
+# ---------------- LÓGICA ----------------
+verificar_tempo()
+preencher_mesas()
 
-if tempo_restante <= 0:
-    trocar_todas_mesas()
-    st.rerun()
+# ---------------- SETS ----------------
+if len(st.session_state.fila) >= 2:
+    sets = "Melhor de 3 sets"
+else:
+    sets = "Melhor de 5 sets"
 
-minutos = tempo_restante // 60
-segundos = tempo_restante % 60
-
-st.markdown(f"<h1 style='text-align:center;'>⏱️ {minutos:02d}:{segundos:02d}</h1>", unsafe_allow_html=True)
-
-# ---------------- TÍTULO ----------------
-st.markdown("<h1 style='text-align:center;'>🏓 FITPONG - BATE-BOLA</h1>", unsafe_allow_html=True)
+st.markdown(f"<h2 style='text-align:center;'>🎯 {sets}</h2>", unsafe_allow_html=True)
 
 # ---------------- ADICIONAR ----------------
-st.markdown("### ➕ Adicionar jogador")
-
 col1, col2 = st.columns([3,1])
 
 with col1:
-    nome = st.text_input("Nome")
+    nome = st.text_input("Adicionar jogador")
 
 with col2:
     if st.button("Adicionar"):
         if nome:
             st.session_state.fila.append(nome)
-
-# ---------------- AUTO PREENCHER ----------------
-preencher_mesas()
 
 # ---------------- MESAS ----------------
 st.markdown("---")
@@ -111,15 +134,21 @@ cols = st.columns(len(st.session_state.mesas))
 
 for i, mesa in enumerate(st.session_state.mesas):
     with cols[i]:
-        p1, p2 = mesa
+        p1, p2 = mesa["players"]
+
+        tempo_restante = int(TEMPO - (time.time() - mesa["inicio"]))
+        min = tempo_restante // 60
+        sec = tempo_restante % 60
+
         st.markdown(f"## 🏓 Mesa {i+1}")
+        st.markdown(f"⏱️ {min:02d}:{sec:02d}")
         st.markdown(f"### {p1} 🆚 {p2}")
 
-        if st.button(f"{p1} venceu", key=f"{i}_a"):
+        if st.button(f"{p1} venceu", key=f"{i}a"):
             resultado(i, p1, p2)
             st.rerun()
 
-        if st.button(f"{p2} venceu", key=f"{i}_b"):
+        if st.button(f"{p2} venceu", key=f"{i}b"):
             resultado(i, p2, p1)
             st.rerun()
 
@@ -138,7 +167,7 @@ for i, j in enumerate(st.session_state.fila):
             st.session_state.fila.pop(i)
             st.rerun()
 
-# ---------------- CONTROLE MESAS ----------------
+# ---------------- CONTROLE ----------------
 st.markdown("---")
 
 c1, c2 = st.columns(2)
