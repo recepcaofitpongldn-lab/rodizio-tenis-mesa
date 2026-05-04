@@ -53,19 +53,27 @@ def resultado(idx, vencedor, perdedor):
     fila = len(st.session_state.fila)
 
     if fila >= 2:
-        # vencedor pode jogar até 2
+        # LIMITE DE 2 PARTIDAS
         if st.session_state.partidas.get(vencedor,0) >= 2:
             st.session_state.fila.append(vencedor)
             vencedor = proximo()
 
-        # perdedor sempre sai
+        if st.session_state.partidas.get(perdedor,0) >= 2:
+            st.session_state.fila.append(perdedor)
+            perdedor = proximo()
+        else:
+            st.session_state.fila.append(perdedor)
+            perdedor = proximo()
+
+    else:
+        # SEM FILA → vencedor continua
         st.session_state.fila.append(perdedor)
         perdedor = proximo()
 
-    else:
-        # pouca fila → vencedor continua
-        st.session_state.fila.append(perdedor)
-        perdedor = proximo()
+    # reset contador de quem entra
+    for j in [vencedor, perdedor]:
+        if j != "Livre":
+            st.session_state.partidas[j] = 0
 
     mesa["players"] = [vencedor, perdedor]
     mesa["inicio"] = time.time()
@@ -114,6 +122,16 @@ def reset():
     st.session_state.partidas = {}
     st.rerun()
 
+# ---------------- TROCA ENTRE MESAS ----------------
+def trocar_jogadores(m1_idx, pos1, m2_idx, pos2):
+    p1 = st.session_state.mesas[m1_idx]["players"][pos1]
+    p2 = st.session_state.mesas[m2_idx]["players"][pos2]
+
+    st.session_state.mesas[m1_idx]["players"][pos1] = p2
+    st.session_state.mesas[m2_idx]["players"][pos2] = p1
+
+    st.rerun()
+
 # ---------------- EXECUÇÃO ----------------
 verificar_tempo()
 preencher_mesas()
@@ -160,6 +178,22 @@ for i, mesa in enumerate(st.session_state.mesas):
 
         if st.button(f"{p2} venceu", key=f"{i}b"):
             resultado(i, p2, p1)
+
+# ---------------- TROCA ENTRE MESAS ----------------
+if len(st.session_state.fila) <= 1 and len(st.session_state.mesas) >= 2:
+    st.markdown("---")
+    st.markdown("## 🔄 Trocar jogadores entre mesas")
+
+    for i in range(len(st.session_state.mesas)):
+        for j in range(i+1, len(st.session_state.mesas)):
+            m1 = st.session_state.mesas[i]["players"]
+            m2 = st.session_state.mesas[j]["players"]
+
+            if st.button(f"Trocar {m1[0]} ↔️ {m2[0]}", key=f"t{i}{j}a"):
+                trocar_jogadores(i,0,j,0)
+
+            if st.button(f"Trocar {m1[1]} ↔️ {m2[1]}", key=f"t{i}{j}b"):
+                trocar_jogadores(i,1,j,1)
 
 # ---------------- FILA ----------------
 st.markdown("---")
