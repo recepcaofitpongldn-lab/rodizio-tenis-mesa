@@ -6,11 +6,14 @@ st.set_page_config(layout="wide")
 if "fila" not in st.session_state:
     st.session_state.fila = []
 
-if "mesa1" not in st.session_state:
-    st.session_state.mesa1 = ["Livre", "Livre"]
+if "mesas" not in st.session_state:
+    st.session_state.mesas = [["Livre","Livre"], ["Livre","Livre"]]  # 2 fixas
 
-if "mesa2" not in st.session_state:
-    st.session_state.mesa2 = ["Livre", "Livre"]
+if "vitorias" not in st.session_state:
+    st.session_state.vitorias = {}
+
+if "partidas_jogadas" not in st.session_state:
+    st.session_state.partidas_jogadas = {}
 
 # ---------------- FUNÇÕES ----------------
 def proximo():
@@ -18,85 +21,123 @@ def proximo():
         return st.session_state.fila.pop(0)
     return "Livre"
 
-def resultado(mesa, vencedor, perdedor):
-    st.session_state.fila.append(perdedor)
-    novo = proximo()
+def registrar_vitoria(jogador):
+    if jogador not in st.session_state.vitorias:
+        st.session_state.vitorias[jogador] = 0
+    st.session_state.vitorias[jogador] += 1
 
-    if mesa == 1:
-        st.session_state.mesa1 = [vencedor, novo]
+def registrar_partida(jogador):
+    if jogador not in st.session_state.partidas_jogadas:
+        st.session_state.partidas_jogadas[jogador] = 0
+    st.session_state.partidas_jogadas[jogador] += 1
+
+def resultado(idx, vencedor, perdedor):
+    fila = len(st.session_state.fila)
+
+    registrar_vitoria(vencedor)
+    registrar_partida(vencedor)
+    registrar_partida(perdedor)
+
+    # regra: 2+ na fila → 2 jogos e sai
+    if fila >= 2:
+        if st.session_state.partidas_jogadas.get(vencedor,0) >= 2:
+            st.session_state.fila.append(vencedor)
+            vencedor = proximo()
+
+        if st.session_state.partidas_jogadas.get(perdedor,0) >= 2:
+            st.session_state.fila.append(perdedor)
+            perdedor = proximo()
+        else:
+            st.session_state.fila.append(perdedor)
+            perdedor = proximo()
     else:
-        st.session_state.mesa2 = [vencedor, novo]
+        st.session_state.fila.append(perdedor)
+        perdedor = proximo()
+
+    st.session_state.mesas[idx] = [vencedor, perdedor]
+
+def adicionar_mesa():
+    st.session_state.mesas.append(["Livre","Livre"])
+
+def remover_mesa():
+    if len(st.session_state.mesas) > 2:
+        st.session_state.mesas.pop()
 
 def resetar():
     st.session_state.fila = []
-    st.session_state.mesa1 = ["Livre", "Livre"]
-    st.session_state.mesa2 = ["Livre", "Livre"]
+    st.session_state.mesas = [["Livre","Livre"], ["Livre","Livre"]]
+    st.session_state.vitorias = {}
+    st.session_state.partidas_jogadas = {}
 
 # ---------------- TÍTULO ----------------
-st.markdown("<h1 style='text-align:center;'>🏓 RODÍZIO - TÊNIS DE MESA</h1>", unsafe_allow_html=True)
+st.markdown("<h1 style='text-align:center;'>🏓 SISTEMA DE BATE-BOLA FITPONG</h1>", unsafe_allow_html=True)
 
 # ---------------- CADASTRO ----------------
 st.markdown("### ➕ Adicionar jogador")
 
-col_add1, col_add2 = st.columns([3,1])
+col1, col2 = st.columns([3,1])
 
-with col_add1:
-    novo = st.text_input("Nome do jogador")
+with col1:
+    novo = st.text_input("Nome")
 
-with col_add2:
+with col2:
     if st.button("Adicionar"):
         if novo:
             st.session_state.fila.append(novo)
 
+# ---------------- CONTROLE DE MESAS ----------------
+st.markdown("### 🛠️ Mesas")
+
+c1, c2 = st.columns(2)
+
+with c1:
+    if st.button("➕ Adicionar mesa"):
+        adicionar_mesa()
+
+with c2:
+    if st.button("➖ Remover mesa extra"):
+        remover_mesa()
+
+# ---------------- DEFINIÇÃO DE SETS ----------------
+if len(st.session_state.fila) >= 2:
+    sets = "Melhor de 3 sets"
+else:
+    sets = "Melhor de 5 sets"
+
+st.markdown(f"### 🎯 Sistema atual: {sets}")
+
 # ---------------- MESAS ----------------
 st.markdown("---")
 
-col1, col2 = st.columns(2)
+cols = st.columns(len(st.session_state.mesas))
 
-# MESA 1
-with col1:
-    st.markdown("## 🟦 Mesa 1")
-    p1, p2 = st.session_state.mesa1
+for i, mesa in enumerate(st.session_state.mesas):
+    with cols[i]:
+        p1, p2 = mesa
+        st.markdown(f"## 🏓 Mesa {i+1}")
+        st.markdown(f"### {p1} 🆚 {p2}")
 
-    st.markdown(f"### {p1}  🆚  {p2}")
+        if st.button(f"{p1} venceu", key=f"{i}a"):
+            resultado(i, p1, p2)
 
-    if st.button(f"{p1} venceu", key="m1p1"):
-        resultado(1, p1, p2)
-
-    if st.button(f"{p2} venceu", key="m1p2"):
-        resultado(1, p2, p1)
-
-# MESA 2
-with col2:
-    st.markdown("## 🟩 Mesa 2")
-    p1, p2 = st.session_state.mesa2
-
-    st.markdown(f"### {p1}  🆚  {p2}")
-
-    if st.button(f"{p1} venceu", key="m2p1"):
-        resultado(2, p1, p2)
-
-    if st.button(f"{p2} venceu", key="m2p2"):
-        resultado(2, p2, p1)
+        if st.button(f"{p2} venceu", key=f"{i}b"):
+            resultado(i, p2, p1)
 
 # ---------------- FILA ----------------
 st.markdown("---")
-st.markdown("## ⏳ Fila de Espera")
+st.markdown("## ⏳ Fila")
 
-for i, jogador in enumerate(st.session_state.fila):
-    st.markdown(f"*{i+1}. {jogador}*")
+for i, j in enumerate(st.session_state.fila):
+    st.write(f"{i+1}. {j}")
 
-# ---------------- CONTROLES ----------------
+# ---------------- RANKING ----------------
 st.markdown("---")
+st.markdown("## 🏆 Ranking")
 
-col_ctrl1, col_ctrl2 = st.columns(2)
+for jogador, v in sorted(st.session_state.vitorias.items(), key=lambda x: -x[1]):
+    st.write(f"{jogador}: {v} vitórias")
 
-with col_ctrl1:
-    if st.button("▶️ Colocar jogadores nas mesas"):
-        if len(st.session_state.fila) >= 4:
-            st.session_state.mesa1 = [proximo(), proximo()]
-            st.session_state.mesa2 = [proximo(), proximo()]
-
-with col_ctrl2:
-    if st.button("🔄 Resetar sistema"):
-        resetar()
+# ---------------- RESET ----------------
+st.markdown("---")
+if st.button("🔄 Resetar tudo"):
+    resetar()
