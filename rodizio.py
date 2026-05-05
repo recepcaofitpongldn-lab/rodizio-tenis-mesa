@@ -3,14 +3,6 @@ import time
 
 st.set_page_config(layout="wide")
 
-# ---------------- AUTO REFRESH (TIMER AO VIVO) ----------------
-st.markdown(
-    """
-    <meta http-equiv="refresh" content="1">
-    """,
-    unsafe_allow_html=True
-)
-
 # ---------------- ESTADO ----------------
 if "fila" not in st.session_state:
     st.session_state.fila = []
@@ -32,7 +24,9 @@ TEMPO = 15 * 60
 # ---------------- FUNÇÕES ----------------
 def proximo():
     if st.session_state.fila:
-        return st.session_state.fila.pop(0)
+        jogador = st.session_state.fila.pop(0)
+        st.session_state.partidas[jogador] = 0
+        return jogador
     return "Livre"
 
 def registrar_partida(j):
@@ -47,6 +41,7 @@ def preencher_mesas():
             if mesa["players"][i] == "Livre":
                 mesa["players"][i] = proximo()
 
+# ---------------- REGRA CORRETA ----------------
 def resultado(idx, vencedor, perdedor):
     mesa = st.session_state.mesas[idx]
 
@@ -56,34 +51,36 @@ def resultado(idx, vencedor, perdedor):
 
     fila = len(st.session_state.fila)
 
+    # 🔥 REGRA OFICIAL
     if fila >= 2:
-        sair_v = st.session_state.partidas.get(vencedor,0) >= 2
-        sair_p = st.session_state.partidas.get(perdedor,0) >= 2
+        # ambos jogam no máximo 2 partidas
+        sair_v = st.session_state.partidas[vencedor] >= 2
+        sair_p = st.session_state.partidas[perdedor] >= 2
 
+        novos = []
+
+        # vencedor
         if sair_v:
             st.session_state.fila.append(vencedor)
-            vencedor = proximo()
-
-        if sair_p:
-            st.session_state.fila.append(perdedor)
-            perdedor = proximo()
+            novos.append(proximo())
         else:
-            st.session_state.fila.append(perdedor)
-            perdedor = proximo()
+            novos.append(vencedor)
+
+        # perdedor SEMPRE sai (entra novo)
+        st.session_state.fila.append(perdedor)
+        novos.append(proximo())
+
+        mesa["players"] = novos
 
     else:
+        # sem fila → vencedor continua
         st.session_state.fila.append(perdedor)
-        perdedor = proximo()
+        mesa["players"] = [vencedor, proximo()]
 
-    for j in [vencedor, perdedor]:
-        if j != "Livre":
-            st.session_state.partidas[j] = 0
-
-    mesa["players"] = [vencedor, perdedor]
     mesa["inicio"] = time.time()
-
     st.rerun()
 
+# ---------------- TIMER ----------------
 def verificar_tempo():
     agora = time.time()
 
@@ -96,6 +93,7 @@ def verificar_tempo():
             mesa["players"] = ["Livre","Livre"]
             mesa["inicio"] = time.time()
 
+# ---------------- MESAS ----------------
 def add_mesa():
     st.session_state.mesas.append({
         "players":["Livre","Livre"],
@@ -129,14 +127,13 @@ if st.button("Adicionar"):
 
 # ---------------- MESAS ----------------
 st.markdown("---")
-
 cols = st.columns(len(st.session_state.mesas))
 
 for i, mesa in enumerate(st.session_state.mesas):
     with cols[i]:
         p1, p2 = mesa["players"]
 
-        tempo_restante = int(TEMPO - (time.time() - mesa["inicio"]))
+        tempo_restante = max(0, int(TEMPO - (time.time() - mesa["inicio"])))
         min = tempo_restante // 60
         sec = tempo_restante % 60
 
@@ -149,41 +146,6 @@ for i, mesa in enumerate(st.session_state.mesas):
 
         if st.button(f"{p2} venceu", key=f"{i}b"):
             resultado(i, p2, p1)
-
-# ---------------- CONFRONTOS (SEM SUMIR NOMES) ----------------
-if len(st.session_state.fila) <= 1 and len(st.session_state.mesas) >= 2:
-    st.markdown("---")
-    st.markdown("## 🔄 Sugestões de Confronto")
-
-    jogadores = []
-    for mesa in st.session_state.mesas:
-        jogadores.extend(mesa["players"])
-
-    jogadores = [j for j in jogadores if j != "Livre"]
-
-    for i in range(len(jogadores)):
-        for j in range(i+1, len(jogadores)):
-            a = jogadores[i]
-            b = jogadores[j]
-
-            if st.button(f"{a} vs {b}", key=f"conf{i}{j}"):
-
-                # mantém todos jogadores
-                restantes = [x for x in jogadores if x not in [a, b]]
-
-                # reorganiza sem perder ninguém
-                nova_lista = [a, b] + restantes
-
-                idx = 0
-                for mesa in st.session_state.mesas:
-                    for k in range(2):
-                        if idx < len(nova_lista):
-                            mesa["players"][k] = nova_lista[idx]
-                            idx += 1
-                        else:
-                            mesa["players"][k] = "Livre"
-
-                st.rerun()
 
 # ---------------- FILA ----------------
 st.markdown("---")
