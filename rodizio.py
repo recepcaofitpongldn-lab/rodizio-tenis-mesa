@@ -29,12 +29,9 @@ def proximo():
 
 def preencher_mesas():
     for mesa in st.session_state.mesas:
-        p1, p2 = mesa["players"]
-
-        if p1 == "Livre":
+        if mesa["players"][0] == "Livre":
             mesa["players"][0] = proximo()
-
-        if p2 == "Livre":
+        if mesa["players"][1] == "Livre":
             mesa["players"][1] = proximo()
 
 def registrar_partida(j):
@@ -43,6 +40,7 @@ def registrar_partida(j):
 def registrar_vitoria(j):
     st.session_state.vitorias[j] = st.session_state.vitorias.get(j,0)+1
 
+# ---------------- RESULTADO (REGRA CORRETA) ----------------
 def resultado(idx, vencedor, perdedor):
     mesa = st.session_state.mesas[idx]
 
@@ -52,13 +50,18 @@ def resultado(idx, vencedor, perdedor):
 
     fila = len(st.session_state.fila)
 
+    # 🔥 REGRA CERTA
     if fila >= 2:
-        # LIMITE DE 2 PARTIDAS
-        if st.session_state.partidas.get(vencedor,0) >= 2:
+        # ambos jogam no máximo 2 partidas
+
+        sair_v = st.session_state.partidas.get(vencedor,0) >= 2
+        sair_p = st.session_state.partidas.get(perdedor,0) >= 2
+
+        if sair_v:
             st.session_state.fila.append(vencedor)
             vencedor = proximo()
 
-        if st.session_state.partidas.get(perdedor,0) >= 2:
+        if sair_p:
             st.session_state.fila.append(perdedor)
             perdedor = proximo()
         else:
@@ -66,11 +69,11 @@ def resultado(idx, vencedor, perdedor):
             perdedor = proximo()
 
     else:
-        # SEM FILA → vencedor continua
+        # pouca fila → vencedor continua
         st.session_state.fila.append(perdedor)
         perdedor = proximo()
 
-    # reset contador de quem entra
+    # reset para novos jogadores
     for j in [vencedor, perdedor]:
         if j != "Livre":
             st.session_state.partidas[j] = 0
@@ -80,21 +83,20 @@ def resultado(idx, vencedor, perdedor):
 
     st.rerun()
 
+# ---------------- TIMER ----------------
 def verificar_tempo():
     agora = time.time()
 
     for mesa in st.session_state.mesas:
         if agora - mesa["inicio"] >= TEMPO:
-            p1, p2 = mesa["players"]
-
-            if p1 != "Livre":
-                st.session_state.fila.append(p1)
-            if p2 != "Livre":
-                st.session_state.fila.append(p2)
+            for p in mesa["players"]:
+                if p != "Livre":
+                    st.session_state.fila.append(p)
 
             mesa["players"] = ["Livre","Livre"]
             mesa["inicio"] = time.time()
 
+# ---------------- MESAS ----------------
 def add_mesa():
     st.session_state.mesas.append({
         "players":["Livre","Livre"],
@@ -105,31 +107,9 @@ def add_mesa():
 def remove_mesa():
     if len(st.session_state.mesas) > 2:
         mesa = st.session_state.mesas.pop()
-
         for p in mesa["players"]:
             if p != "Livre":
                 st.session_state.fila.append(p)
-
-    st.rerun()
-
-def reset():
-    st.session_state.fila = []
-    st.session_state.mesas = [
-        {"players": ["Livre","Livre"], "inicio": time.time()},
-        {"players": ["Livre","Livre"], "inicio": time.time()}
-    ]
-    st.session_state.vitorias = {}
-    st.session_state.partidas = {}
-    st.rerun()
-
-# ---------------- TROCA ENTRE MESAS ----------------
-def trocar_jogadores(m1_idx, pos1, m2_idx, pos2):
-    p1 = st.session_state.mesas[m1_idx]["players"][pos1]
-    p2 = st.session_state.mesas[m2_idx]["players"][pos2]
-
-    st.session_state.mesas[m1_idx]["players"][pos1] = p2
-    st.session_state.mesas[m2_idx]["players"][pos2] = p1
-
     st.rerun()
 
 # ---------------- EXECUÇÃO ----------------
@@ -137,28 +117,18 @@ verificar_tempo()
 preencher_mesas()
 
 # ---------------- SETS ----------------
-if len(st.session_state.fila) >= 2:
-    sets = "Melhor de 3 sets"
-else:
-    sets = "Melhor de 5 sets"
-
+sets = "Melhor de 3" if len(st.session_state.fila) >= 2 else "Melhor de 5"
 st.markdown(f"<h2 style='text-align:center;'>🎯 {sets}</h2>", unsafe_allow_html=True)
 
 # ---------------- ADICIONAR ----------------
-col1, col2 = st.columns([3,1])
-
-with col1:
-    nome = st.text_input("Adicionar jogador")
-
-with col2:
-    if st.button("Adicionar"):
-        if nome:
-            st.session_state.fila.append(nome)
-            st.rerun()
+nome = st.text_input("Adicionar jogador")
+if st.button("Adicionar"):
+    if nome:
+        st.session_state.fila.append(nome)
+        st.rerun()
 
 # ---------------- MESAS ----------------
 st.markdown("---")
-
 cols = st.columns(len(st.session_state.mesas))
 
 for i, mesa in enumerate(st.session_state.mesas):
@@ -179,21 +149,26 @@ for i, mesa in enumerate(st.session_state.mesas):
         if st.button(f"{p2} venceu", key=f"{i}b"):
             resultado(i, p2, p1)
 
-# ---------------- TROCA ENTRE MESAS ----------------
+# ---------------- CONFRONTOS AUTOMÁTICOS ----------------
 if len(st.session_state.fila) <= 1 and len(st.session_state.mesas) >= 2:
     st.markdown("---")
-    st.markdown("## 🔄 Trocar jogadores entre mesas")
+    st.markdown("## 🔄 Sugestões de Confronto")
 
-    for i in range(len(st.session_state.mesas)):
-        for j in range(i+1, len(st.session_state.mesas)):
-            m1 = st.session_state.mesas[i]["players"]
-            m2 = st.session_state.mesas[j]["players"]
+    m1 = st.session_state.mesas[0]["players"]
+    m2 = st.session_state.mesas[1]["players"]
 
-            if st.button(f"Trocar {m1[0]} ↔️ {m2[0]}", key=f"t{i}{j}a"):
-                trocar_jogadores(i,0,j,0)
+    combinacoes = [
+        (m1[0], m2[0]),
+        (m1[0], m2[1]),
+        (m1[1], m2[0]),
+        (m1[1], m2[1])
+    ]
 
-            if st.button(f"Trocar {m1[1]} ↔️ {m2[1]}", key=f"t{i}{j}b"):
-                trocar_jogadores(i,1,j,1)
+    for a, b in combinacoes:
+        if st.button(f"{a} vs {b}"):
+            st.session_state.mesas[0]["players"] = [a, b]
+            st.session_state.mesas[1]["players"] = ["Livre","Livre"]
+            st.rerun()
 
 # ---------------- FILA ----------------
 st.markdown("---")
@@ -218,16 +193,11 @@ for i, j in enumerate(st.session_state.fila):
 
 # ---------------- CONTROLE ----------------
 st.markdown("---")
+if st.button("➕ Mesa extra"):
+    add_mesa()
 
-c1, c2 = st.columns(2)
-
-with c1:
-    if st.button("➕ Mesa extra"):
-        add_mesa()
-
-with c2:
-    if st.button("➖ Remover mesa"):
-        remove_mesa()
+if st.button("➖ Remover mesa"):
+    remove_mesa()
 
 # ---------------- RANKING ----------------
 st.markdown("---")
@@ -235,8 +205,3 @@ st.markdown("## 🏆 Ranking")
 
 for j, v in sorted(st.session_state.vitorias.items(), key=lambda x:-x[1]):
     st.write(f"{j}: {v}")
-
-# ---------------- RESET ----------------
-st.markdown("---")
-if st.button("🔄 Resetar sistema"):
-    reset()
