@@ -114,54 +114,72 @@ if st.button("Adicionar"):
         st.session_state.fila.append(nome)
         st.rerun()
 
-# ---------------- TIMER DINÂMICO ----------------
-timer_placeholder = st.empty()
-
 # ---------------- MESAS ----------------
-mesas_placeholder = st.empty()
+st.markdown("---")
+cols = st.columns(len(st.session_state.mesas))
 
-def render():
-    with mesas_placeholder.container():
-        st.markdown("---")
-        cols = st.columns(len(st.session_state.mesas))
+for i, mesa in enumerate(st.session_state.mesas):
+    with cols[i]:
+        p1, p2 = mesa["players"]
 
-        for i, mesa in enumerate(st.session_state.mesas):
-            with cols[i]:
-                p1, p2 = mesa["players"]
+        st.markdown(f"## 🏓 Mesa {i+1}")
 
-                tempo_restante = max(0, int(TEMPO - (time.time() - mesa["inicio"])))
-                min = tempo_restante // 60
-                sec = tempo_restante % 60
+        # 🔥 TIMER REAL (JS)
+        tempo_inicio = int(mesa["inicio"])
+        tempo_total = TEMPO
 
-                st.markdown(f"## 🏓 Mesa {i+1}")
-                st.markdown(f"⏱️ {min:02d}:{sec:02d}")
-                st.markdown(f"### {p1} 🆚 {p2}")
+        st.components.v1.html(f"""
+        <div id="timer{i}" style="font-size:22px;font-weight:bold;"></div>
 
-                if st.button(f"{p1} venceu", key=f"{i}a"):
-                    resultado(i, p1, p2)
+        <script>
+        var start = {tempo_inicio};
+        var total = {tempo_total};
 
-                if st.button(f"{p2} venceu", key=f"{i}b"):
-                    resultado(i, p2, p1)
+        function updateTimer() {{
+            var now = Math.floor(Date.now() / 1000);
+            var diff = total - (now - start);
 
-# ---------------- CONFRONTOS INTELIGENTES ----------------
-if len(st.session_state.fila) <= 1 and len(st.session_state.mesas) >= 2:
+            if (diff < 0) diff = 0;
+
+            var min = Math.floor(diff / 60);
+            var sec = diff % 60;
+
+            document.getElementById("timer{i}").innerHTML =
+                "⏱️ " + String(min).padStart(2,'0') + ":" + String(sec).padStart(2,'0');
+        }}
+
+        setInterval(updateTimer, 1000);
+        updateTimer();
+        </script>
+        """, height=40)
+
+        st.markdown(f"### {p1} 🆚 {p2}")
+
+        if st.button(f"{p1} venceu", key=f"{i}a"):
+            resultado(i, p1, p2)
+
+        if st.button(f"{p2} venceu", key=f"{i}b"):
+            resultado(i, p2, p1)
+
+# ---------------- CONFRONTOS ----------------
+if len(st.session_state.fila) <= 1:
     st.markdown("---")
     st.markdown("## 🔄 Sugestões de Confronto")
 
-    jogadores = []
+    todos = []
     for mesa in st.session_state.mesas:
-        jogadores.extend(mesa["players"])
+        todos.extend(mesa["players"])
 
-    jogadores = [j for j in jogadores if j != "Livre"]
+    todos = [j for j in todos if j != "Livre"]
 
-    for i in range(len(jogadores)):
-        for j in range(i+1, len(jogadores)):
-            a = jogadores[i]
-            b = jogadores[j]
+    for i in range(len(todos)):
+        for j in range(i+1, len(todos)):
+            a = todos[i]
+            b = todos[j]
 
             if st.button(f"{a} vs {b}", key=f"conf{i}{j}"):
 
-                restantes = [x for x in jogadores if x not in [a, b]]
+                restantes = [x for x in todos if x not in [a, b]]
                 nova_lista = [a, b] + restantes
 
                 idx = 0
@@ -215,8 +233,3 @@ st.markdown("## 🏆 Ranking")
 
 for j, v in sorted(st.session_state.vitorias.items(), key=lambda x:-x[1]):
     st.write(f"{j}: {v}")
-
-# ---------------- LOOP DO TIMER ----------------
-for _ in range(100000):
-    render()
-    time.sleep(1)
